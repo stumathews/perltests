@@ -11,14 +11,15 @@ sub ConvertCompanyToTicker {
 	my $lang = shift @args ||  "en-gb";
 	my $json = getJson("http://d.yimg.com/aq/autoc?query=$company&region=$region&lang=$lang");
 	if ($json) {
-	    my $djson = decode_json($json);
-	    my @result = @{$djson->{'ResultSet'}{'Result'}};
-	    for my $var (@result) { 
+	    my $jObj = decode_json($json);
+	    my @queryResult = @{$jObj->{'ResultSet'}{'Result'}};
+	    for my $var (@queryResult) { 
 		    return $var->{symbol};
 	    }
 	} else {
-	    return undef
+	    return undef;
 	}
+	return undef;
 }
 
 sub ConvertTickerToStock {
@@ -28,8 +29,20 @@ sub ConvertTickerToStock {
 		           "select%20*%20from%20yahoo.finance.quotes%20where%20symbol%20in%20(%22" .
 			   $ticker .
 			   "%22)&format=json&env=store%3A%2F%2Fdatatables.org%2Falltableswithkeys&callback=");
-
-	print "ConvertTickerToStock:$json\n" if $json;
+	if($json){
+		my $jObj = decode_json($json);
+#		print "$json\n";
+		my $queryResult = $jObj->{'query'}{'results'}{'quote'};
+		#interpret hashref into a hash
+		my %hash = %$queryResult;
+		#convert hash to an array
+		my @array = (%hash);
+		foreach my $var (@array){
+			print $var || "null"."\n";
+		}
+		print $hash{'symbol'}."\n";
+		print $hash{'Ask'}."\n";
+	}
 }
 
 sub getJson {
@@ -47,7 +60,7 @@ sub getJson {
             print "HTTP GET error message: ", $resp->message, "\n";
 	    return undef;
         }
-
+	return undef;
 }
 
 

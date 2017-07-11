@@ -57,6 +57,7 @@ sub getJson {
 	return undef;
 }
 
+my %all;
 
 # Read in the list of companies
 while(<>){
@@ -64,15 +65,29 @@ while(<>){
 	chop;
 	my $company = $_;
 	next if !$_;
+	#TODO: lookup cache for previous company to ticker resolutions, so we dont have to call extra rest call
 	my $ticker = ConvertCompanyToTicker($company);	
 	next if !$ticker;
+	## save ticker details in global ticker hash
+	$all{$ticker} = $ticker;
 	my %stock = ConvertTickerToStock($ticker);
-	next if !%stock;
-	# 
-	foreach my $var (keys %stock) {
-		$stock{$var} = "empty" if !$stock{$var};
-		print "$var = ".$stock{$var}."\n";
-	}	
+	if(%stock) {	
+		$all{$ticker} = %stock;
+		print "$stock{'symbol'}\n";
+	} else { next; }
+
+	#TODO: update cache of companies to ticker symbols
+	
+# 
+#	foreach my $var (keys %stock) {
+#		$stock{$var} = "empty" if !$stock{$var};
+#		print "$var = ".$stock{$var}."\n";
+#	}	
 
 }
 
+# This is where we should multithread the rest calls to speed up things.
+foreach my $var (keys %all) {
+		print "$var\n";
+
+}

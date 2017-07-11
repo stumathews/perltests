@@ -2,6 +2,7 @@
 use strict;
 use warnings;
 use LWP::UserAgent;
+use Storable;
 use JSON qw( decode_json );
  
 sub ConvertCompanyToTicker {
@@ -14,6 +15,7 @@ sub ConvertCompanyToTicker {
 	    my $jObj = decode_json($json);
 	    my @queryResult = @{$jObj->{'ResultSet'}{'Result'}};
 	    for my $var (@queryResult) { 
+		    print "LIVE convertCompanyToTicker\n";
 		    return $var->{symbol};
 	    }
 	} else {
@@ -57,24 +59,42 @@ sub getJson {
 	return undef;
 }
 
+#Read in Cache of ticker to company names
+my $cachefile = "co2tick.cache";
+my $haveTickerCache = -e $cachefile;
+my %cache;
+if($haveTickerCache) {
+	print "cache file found \n";
+	%cache = %{ retrieve($cachefile) };
+}
+
+
 my %all;
 
 # Read in the list of companies
+my $lineCount = 0;
 while(<>){
 	chomp;
 	chop;
 	my $company = $_;
 	next if !$_;
 	#TODO: lookup cache for previous company to ticker resolutions, so we dont have to call extra rest call
-	my $ticker = ConvertCompanyToTicker($company);	
+	my $ticker;
+	$ticker = $cache{$company};
+	if($ticker) { 
+		print "cache hit for '$company' as '$ticker'!\n"; 
+	} else{
+ 		$ticker = ConvertCompanyToTicker($company);
+	};
 	next if !$ticker;
+	$cache{$company} = $ticker if(!$cache{$company});
 	## save ticker details in global ticker hash
-	$all{$ticker} = $ticker;
 	my %stock = ConvertTickerToStock($ticker);
 	if(%stock) {	
 		$all{$ticker} = %stock;
 		print "$stock{'symbol'}\n";
 	} else { next; }
+	if($lineCount == 3) {last;}
 
 	#TODO: update cache of companies to ticker symbols
 	
@@ -83,11 +103,11 @@ while(<>){
 #		$stock{$var} = "empty" if !$stock{$var};
 #		print "$var = ".$stock{$var}."\n";
 #	}	
-
+	$lineCount++;
 }
+store(\%cache,$cachefile);
 
 # This is where we should multithread the rest calls to speed up things.
-foreach my $var (keys %all) {
-		print "$var\n";
-
+foreach my $ticker (keys %all) {
+	print "Ticker is $ticker\n";
 }

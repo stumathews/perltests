@@ -4,6 +4,8 @@ use warnings;
 use LWP::UserAgent;
 use Storable;
 use JSON qw( decode_json );
+use Scalar::Util qw(reftype);
+#use Parallel::Iterator qw( iterate );
  
 sub ConvertCompanyToTicker {
 	my @args = @_;
@@ -15,11 +17,8 @@ sub ConvertCompanyToTicker {
 	    my $jObj = decode_json($json);
 	    my @queryResult = @{$jObj->{'ResultSet'}{'Result'}};
 	    for my $var (@queryResult) { 
-		    print "LIVE convertCompanyToTicker\n";
 		    return $var->{symbol};
 	    }
-	} else {
-	    return undef;
 	}
 	return undef;
 }
@@ -28,10 +27,9 @@ sub ConvertTickerToStock {
 	my @args = @_;
 	my $ticker = shift @args;
 	my $json = getJson("https://query.yahooapis.com/v1/public/yql?q=".
-		           "select%20*%20from%20yahoo.finance.quotes%20where%20symbol%20in%20(%22" .
-			   $ticker .
+		           "select%20*%20from%20yahoo.finance.quotes%20where%20symbol%20in%20(%22" .$ticker.
 			   "%22)&format=json&env=store%3A%2F%2Fdatatables.org%2Falltableswithkeys&callback=");
-	if($json){
+	if($json) {
 		my $jObj = decode_json($json);
 		my $queryResult = $jObj->{'query'}{'results'}{'quote'};
 		#interpret hashref into a hash
@@ -56,19 +54,18 @@ sub getJson {
             print "HTTP GET error message: ", $resp->message, "\n";
 	    return undef;
         }
-	return undef;
 }
 
-#Read in Cache of ticker to company names
-my $cachefile = "co2tick.cache";
-my $haveTickerCache = -e $cachefile;
-my %cache;
+#Read in Cache of ticker to company names to prevent relookup(expensive)
+my $cacheFileName = "co2tick.cache";
+my $haveTickerCache = -e $cacheFileName;
+my %resolutionCache;
 if($haveTickerCache) {
-	print "cache file found \n";
-	%cache = %{ retrieve($cachefile) };
+	print "company to ticker cache file found. \n";
+	%resolutionCache = %{ retrieve($cacheFileName) };
 }
 
-
+#Global store if all tickers and their stock details(tbd)
 my %all;
 
 # Read in the list of companies
@@ -78,26 +75,18 @@ while(<>){
 	chop;
 	my $company = $_;
 	next if !$_;
-	#TODO: lookup cache for previous company to ticker resolutions, so we dont have to call extra rest call
 	my $ticker;
-	$ticker = $cache{$company};
+	$ticker = $resolutionCache{$company};
 	if($ticker) { 
 		print "cache hit for '$company' as '$ticker'!\n"; 
 	} else{
- 		$ticker = ConvertCompanyToTicker($company);
+	    	print "LIVE convertCompanyToTicker $company\n";
+		$ticker = ConvertCompanyToTicker($company);
 	};
 	next if !$ticker;
-	$cache{$company} = $ticker if(!$cache{$company});
-	## save ticker details in global ticker hash
-	my %stock = ConvertTickerToStock($ticker);
-	if(%stock) {	
-		$all{$ticker} = %stock;
-		print "$stock{'symbol'}\n";
-	} else { next; }
-	if($lineCount == 3) {last;}
-
-	#TODO: update cache of companies to ticker symbols
-	
+	$resolutionCache{$company} = $ticker if(!$resolutionCache{$company});
+	$all{$ticker} = undef;
+	last if $lineCount == 5;
 # 
 #	foreach my $var (keys %stock) {
 #		$stock{$var} = "empty" if !$stock{$var};
@@ -105,9 +94,17 @@ while(<>){
 #	}	
 	$lineCount++;
 }
-store(\%cache,$cachefile);
+
+#persist the cache of company to ticker hashes for future lookups...
+store(\%resolutionCache,$cacheFileName);
 
 # This is where we should multithread the rest calls to speed up things.
 foreach my $ticker (keys %all) {
-	print "Ticker is $ticker\n";
+	my %stock = ConvertTickerToStock($ticker);
+	if(%stock) {	
+		$all{$ticker} = \%stock;
+		print "++>".$all{$ticker}->{'symbol'}."\n";
+	} else { next; }
 }
+
+# TODO: write all to CSV as output...

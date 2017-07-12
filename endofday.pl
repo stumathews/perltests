@@ -56,17 +56,24 @@ sub getJson {
         }
 }
 
+#Global store if all tickers and their stock details(tbd)
+my %all;
+
 #Read in Cache of ticker to company names to prevent relookup(expensive)
 my $cacheFileName = "co2tick.cache";
+my $progressCacheFileName = "progress.cache";
 my $haveTickerCache = -e $cacheFileName;
+my $haveProgressCache = -e $progressCacheFileName;
 my %resolutionCache;
 if($haveTickerCache) {
 	print "company to ticker cache file found. \n";
 	%resolutionCache = %{ retrieve($cacheFileName) };
 }
+if($haveProgressCache) {
+	print "progress cache file found. \n";
+	%all = %{ retrieve($progressCacheFileName) };
+}
 
-#Global store if all tickers and their stock details(tbd)
-my %all;
 
 # Read in the list of companies
 my $lineCount = 0;
@@ -99,12 +106,18 @@ while(<>){
 store(\%resolutionCache,$cacheFileName);
 
 # This is where we should multithread the rest calls to speed up things.
+my $processed = 0;
 foreach my $ticker (keys %all) {
 	my %stock = ConvertTickerToStock($ticker);
 	if(%stock) {	
 		$all{$ticker} = \%stock;
-		print "++>".$all{$ticker}->{'symbol'}."\n";
+		print "symbol>".$all{$ticker}->{'symbol'}."\n";
+		print "Ask>".($all{$ticker}->{'Ask'} || "empty")."\n";
 	} else { next; }
+	if (($processed++ % 2) == 0) {
+		print "saving progress...\n";
+		store(\%all,$progressCacheFileName);
+	}
 }
 
 # TODO: write all to CSV as output...

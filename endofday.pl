@@ -90,27 +90,31 @@ my $lineCount = 0;
 while(<>){
 	chomp;
 	chop;
-	my $company = $_;
-	#convert spaces into _ so that can store in hash
-	$company =~ s/ /_/g;
 	next if !$_;
+	my $company = $_;
 	my $ticker;
+
+	$company =~ s/ /_/g;
 	$ticker = $resolutionCache{$company};
-	if($ticker) { 
-		#print "cache hit for '$company' as '$ticker'!\n"; 
-	} else{
+
+	# get a ticker	
+	if(!$ticker) { 
 		$company =~ s/_/ /g;
-	    	print "LIVE convertCompanyToTicker $company\n";
+	    	print "LIVE convertCompanyToTicker Company:'$company': ";
 		$ticker = ConvertCompanyToTicker($company);
+		print ($ticker || "could not resolved to a ticker symbol.");
+		print "\n";
 	};
+
 	if(!$ticker) {
-		print "no ticker resolved for $company\n";
 		next;
 	}
+	$all{$ticker} = undef if(!$all{$ticker});
 	$company =~ s/ /_/g;
-	$resolutionCache{$company} = $ticker if(!$resolutionCache{$company});
-	($all{$ticker} = undef) if !$all{$ticker};
+	$resolutionCache{$company} = $ticker;
+	
 	$lineCount++;
+	last if $lineCount == 10;
 }
 
 #persist the cache of company to ticker hashes for future lookups...
@@ -119,16 +123,15 @@ store(\%resolutionCache,$cacheFileName);
 # This is where we should multithread the rest calls to speed up things.
 my $processed = 0;
 foreach my $ticker (keys %all) {
-	if($all{$ticker}){
-		#print "stock cached for symbol:".$all{$ticker}->{'symbol'}." Name:$all{$ticker}->{'Name'}\n";
-	} else {
-	    	print "LIVE ConvertTickerToStock $ticker\n";
+	if(!$all{$ticker}) {
+	    	print "LIVE ConvertTickerToStock $ticker: ";
 		my %stock = ConvertTickerToStock($ticker);
 		if(%stock) {	
 			$all{$ticker} = \%stock;
-			print "got stock for symbol:".$all{$ticker}->{'symbol'}." Name:$all{$ticker}->{'Name'}\n";
+			print $all{$ticker}->{'symbol'}." Name:$all{$ticker}->{'Name'}\n";
 		} else { 
 			print "no stock data recieved for $ticker\n";
+			$all{$ticker} = undef;
 			next;
 		}
 	}
@@ -136,4 +139,4 @@ foreach my $ticker (keys %all) {
 
 # TODO: write all to CSV as output...
 
-#unlink $progressCacheFileName;
+unlink $progressCacheFileName

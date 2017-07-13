@@ -6,7 +6,9 @@ use Storable;
 use JSON qw( decode_json );
 use Scalar::Util qw(reftype);
 #use Parallel::Iterator qw( iterate );
- 
+
+
+
 sub ConvertCompanyToTicker {
 	my @args = @_;
 	my $company = shift @args;
@@ -14,6 +16,7 @@ sub ConvertCompanyToTicker {
 	my $lang = shift @args ||  "en-gb";
 	my $json = getJson("http://d.yimg.com/aq/autoc?query=$company&region=$region&lang=$lang");
 	if ($json) {
+		#print "json:$json\n";
 	    my $jObj = decode_json($json);
 	    my @queryResult = @{$jObj->{'ResultSet'}{'Result'}};
 	    for my $var (@queryResult) { 
@@ -30,8 +33,10 @@ sub ConvertTickerToStock {
 		           "select%20*%20from%20yahoo.finance.quotes%20where%20symbol%20in%20(%22" .$ticker.
 			   "%22)&format=json&env=store%3A%2F%2Fdatatables.org%2Falltableswithkeys&callback=");
 	if($json) {
+		#print "json:$json\n";
 		my $jObj = decode_json($json);
 		my $queryResult = $jObj->{'query'}{'results'}{'quote'};
+		return undef if !$queryResult;
 		#interpret hashref into a hash
 		my %hash = %$queryResult;
 		return %hash;
@@ -74,6 +79,11 @@ if($haveProgressCache) {
 	%all = %{ retrieve($progressCacheFileName) };
 }
 
+$SIG{'INT'} = sub {
+	print "Saving progress...\n";
+	store(\%all,$progressCacheFileName);
+	exit 1;
+};
 
 # Read in the list of companies
 my $lineCount = 0;
@@ -81,24 +91,25 @@ while(<>){
 	chomp;
 	chop;
 	my $company = $_;
+	#convert spaces into _ so that can store in hash
+	$company =~ s/ /_/g;
 	next if !$_;
 	my $ticker;
 	$ticker = $resolutionCache{$company};
 	if($ticker) { 
-		print "cache hit for '$company' as '$ticker'!\n"; 
+		#print "cache hit for '$company' as '$ticker'!\n"; 
 	} else{
+		$company =~ s/_/ /g;
 	    	print "LIVE convertCompanyToTicker $company\n";
 		$ticker = ConvertCompanyToTicker($company);
 	};
-	next if !$ticker;
+	if(!$ticker) {
+		print "no ticker resolved for $company\n";
+		next;
+	}
+	$company =~ s/ /_/g;
 	$resolutionCache{$company} = $ticker if(!$resolutionCache{$company});
-	$all{$ticker} = undef;
-	last if $lineCount == 5;
-# 
-#	foreach my $var (keys %stock) {
-#		$stock{$var} = "empty" if !$stock{$var};
-#		print "$var = ".$stock{$var}."\n";
-#	}	
+	($all{$ticker} = undef) if !$all{$ticker};
 	$lineCount++;
 }
 
@@ -108,16 +119,21 @@ store(\%resolutionCache,$cacheFileName);
 # This is where we should multithread the rest calls to speed up things.
 my $processed = 0;
 foreach my $ticker (keys %all) {
-	my %stock = ConvertTickerToStock($ticker);
-	if(%stock) {	
-		$all{$ticker} = \%stock;
-		print "symbol>".$all{$ticker}->{'symbol'}."\n";
-		print "Ask>".($all{$ticker}->{'Ask'} || "empty")."\n";
-	} else { next; }
-	if (($processed++ % 2) == 0) {
-		print "saving progress...\n";
-		store(\%all,$progressCacheFileName);
+	if($all{$ticker}){
+		#print "stock cached for symbol:".$all{$ticker}->{'symbol'}." Name:$all{$ticker}->{'Name'}\n";
+	} else {
+	    	print "LIVE ConvertTickerToStock $ticker\n";
+		my %stock = ConvertTickerToStock($ticker);
+		if(%stock) {	
+			$all{$ticker} = \%stock;
+			print "got stock for symbol:".$all{$ticker}->{'symbol'}." Name:$all{$ticker}->{'Name'}\n";
+		} else { 
+			print "no stock data recieved for $ticker\n";
+			next;
+		}
 	}
 }
 
 # TODO: write all to CSV as output...
+
+#unlink $progressCacheFileName;

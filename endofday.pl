@@ -71,16 +71,13 @@ my $haveTickerCache = -e $cacheFileName;
 my $haveProgressCache = -e $progressCacheFileName;
 my %resolutionCache;
 if($haveTickerCache) {
-	print "company to ticker cache file found. \n";
 	%resolutionCache = %{ retrieve($cacheFileName) };
 }
 if($haveProgressCache) {
-	print "progress cache file found. \n";
 	%all = %{ retrieve($progressCacheFileName) };
 }
 
 $SIG{'INT'} = sub {
-	print "Saving progress...\n";
 	store(\%all,$progressCacheFileName);
 	exit 1;
 };
@@ -114,7 +111,7 @@ while(<>){
 	$resolutionCache{$company} = $ticker;
 	
 	$lineCount++;
-	last if $lineCount == 10;
+	last if $lineCount == 20;
 }
 
 #persist the cache of company to ticker hashes for future lookups...
@@ -128,7 +125,9 @@ foreach my $ticker (keys %all) {
 		my %stock = ConvertTickerToStock($ticker);
 		if(%stock) {	
 			$all{$ticker} = \%stock;
-			print $all{$ticker}->{'symbol'}." Name:$all{$ticker}->{'Name'}\n";
+			print "Symbol:".($all{$ticker}->{'symbol'} || "No symbol found.")
+			." Name: ".($all{$ticker}->{'Name'} || "No name found.")
+			." Ask: ".($all{$ticker}->{'Ask'} || "No askping price found.")."\n";
 		} else { 
 			print "no stock data recieved for $ticker\n";
 			$all{$ticker} = undef;

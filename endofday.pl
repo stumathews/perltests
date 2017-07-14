@@ -7,8 +7,6 @@ use JSON qw( decode_json );
 use Scalar::Util qw(reftype);
 #use Parallel::Iterator qw( iterate );
 
-
-
 sub ConvertCompanyToTicker {
 	my @args = @_;
 	my $company = shift @args;
@@ -109,9 +107,9 @@ while(<>){
 	$all{$ticker} = undef if(!$all{$ticker});
 	$company =~ s/ /_/g;
 	$resolutionCache{$company} = $ticker;
-	
+
+	last if $lineCount == 5;	
 	$lineCount++;
-	last if $lineCount == 20;
 }
 
 #persist the cache of company to ticker hashes for future lookups...
@@ -137,5 +135,14 @@ foreach my $ticker (keys %all) {
 }
 
 # TODO: write all to CSV as output...
-
+foreach my $ticker (keys %all) {
+	my $hash = $all{$ticker}; 
+	foreach my $key(keys %$hash) {
+		my $column = $key;
+		my $data = $hash->{$key} || "none";
+		print "column: $column data: $data\n";
+	}
+}
 unlink $progressCacheFileName
+
+

@@ -108,12 +108,14 @@ while(<>){
 	$company =~ s/ /_/g;
 	$resolutionCache{$company} = $ticker;
 
-	last if $lineCount == 5;	
+	last if $lineCount == 20;	
 	$lineCount++;
 }
 
 #persist the cache of company to ticker hashes for future lookups...
 store(\%resolutionCache,$cacheFileName);
+
+my @columns;
 
 # This is where we should multithread the rest calls to speed up things.
 my $processed = 0;
@@ -134,15 +136,27 @@ foreach my $ticker (keys %all) {
 	}
 }
 
-# TODO: write all to CSV as output...
-foreach my $ticker (keys %all) {
-	my $hash = $all{$ticker}; 
-	foreach my $key(keys %$hash) {
-		my $column = $key;
-		my $data = $hash->{$key} || "none";
-		print "column: $column data: $data\n";
+
+# Write all to CSV as output...
+open(my $csv, '>', 'stocks.csv');
+foreach my $ticker (sort keys %all) {
+	my $stock = $all{$ticker}; 
+	#Get the first stocks values' order as default column order for all following stocks for csv format
+	if(!@columns) { 
+		@columns = sort keys(%$stock);
+		print $csv join(";", @columns)."\n";
 	}
+	my @line;
+        
+	foreach my $key(@columns) {
+		my $column = $key;
+		my $data = $stock->{$key} || "none";
+		push(@line, $data);
+	}
+	print $csv join(";",@line)."\n";
+	@line = undef;
 }
+close($csv);	
 unlink $progressCacheFileName
 
 

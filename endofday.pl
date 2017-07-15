@@ -5,7 +5,8 @@ use LWP::UserAgent;
 use Storable;
 use JSON qw( decode_json );
 use Scalar::Util qw(reftype);
-#use Parallel::Iterator qw( iterate );
+use Parallel::Iterator qw( iterate_as_hash );
+use Data::Dumper;
 
 sub ConvertCompanyToTicker {
 	my @args = @_;
@@ -34,10 +35,7 @@ sub ConvertTickerToStock {
 		#print "json:$json\n";
 		my $jObj = decode_json($json);
 		my $queryResult = $jObj->{'query'}{'results'}{'quote'};
-		return undef if !$queryResult;
-		#interpret hashref into a hash
-		my %hash = %$queryResult;
-		return %hash;
+		return $queryResult || undef;
 	}
 	return undef;
 }
@@ -99,27 +97,28 @@ while(<>){
 		$ticker = ConvertCompanyToTicker($company);
 		print ($ticker || "could not resolved to a ticker symbol.");
 		print "\n";
+		next if(!$ticker);
 	};
 
-	if(!$ticker) {
-		next;
-	}
 	$all{$ticker} = undef if(!$all{$ticker});
 	$company =~ s/ /_/g;
 	$resolutionCache{$company} = $ticker;
 
-	last if $lineCount == 20;	
 	$lineCount++;
 }
 
 #persist the cache of company to ticker hashes for future lookups...
 store(\%resolutionCache,$cacheFileName);
 
+my %output = iterate_as_hash(\&ConvertTickerToStock, \%all);
+%all = (%all, %output);
+print Dumper(\%all); # much better
 my @columns;
 
 # This is where we should multithread the rest calls to speed up things.
 my $processed = 0;
 foreach my $ticker (keys %all) {
+	last;
 	if(!$all{$ticker}) {
 	    	print "LIVE ConvertTickerToStock $ticker: ";
 		my %stock = ConvertTickerToStock($ticker);

@@ -7,10 +7,11 @@ use JSON qw( decode_json );
 use Scalar::Util qw(reftype);
 use Parallel::Iterator qw( iterate_as_hash );
 use Data::Dumper;
+use URI::Encode qw(uri_encode uri_decode);
 
 sub ConvertCompanyToTicker {
 	my @args = @_;
-	my $company = shift @args;
+	my $company = uri_encode(shift @args);
 	my $region = shift @args || "us";
 	my $lang = shift @args ||  "en-gb";
 	my $json = getJson("http://d.yimg.com/aq/autoc?query=$company&region=$region&lang=$lang");
@@ -28,14 +29,23 @@ sub ConvertCompanyToTicker {
 sub ConvertTickerToStock {
 	my @args = @_;
 	my $ticker = shift @args;
-	my $json = getJson("https://query.yahooapis.com/v1/public/yql?q=".
+	print "Live ConvertTickerToStockTicker: '$ticker'\n";
+	my $url = "https://query.yahooapis.com/v1/public/yql?q=".
 		           "select%20*%20from%20yahoo.finance.quotes%20where%20symbol%20in%20(%22" .$ticker.
-			   "%22)&format=json&env=store%3A%2F%2Fdatatables.org%2Falltableswithkeys&callback=");
+			   "%22)&format=json&env=store%3A%2F%2Fdatatables.org%2Falltableswithkeys&callback=";
+	my $json = getJson($url);
 	if($json) {
-		#print "json:$json\n";
-		my $jObj = decode_json($json);
-		my $queryResult = $jObj->{'query'}{'results'}{'quote'};
-		return $queryResult || undef;
+		eval {
+			my $jObj = decode_json($json);
+			1;
+			my $queryResult = $jObj->{'query'}{'results'}{'quote'};
+			return $queryResult || undef;
+		} or do {
+		 	print $url; 
+			my $e = $@;
+			print "$e\n";
+			return undef;
+		};
 	}
 	return undef;
 }
@@ -112,29 +122,7 @@ store(\%resolutionCache,$cacheFileName);
 
 my %output = iterate_as_hash(\&ConvertTickerToStock, \%all);
 %all = (%all, %output);
-print Dumper(\%all); # much better
 my @columns;
-
-# This is where we should multithread the rest calls to speed up things.
-my $processed = 0;
-foreach my $ticker (keys %all) {
-	last;
-	if(!$all{$ticker}) {
-	    	print "LIVE ConvertTickerToStock $ticker: ";
-		my %stock = ConvertTickerToStock($ticker);
-		if(%stock) {	
-			$all{$ticker} = \%stock;
-			print "Symbol:".($all{$ticker}->{'symbol'} || "No symbol found.")
-			." Name: ".($all{$ticker}->{'Name'} || "No name found.")
-			." Ask: ".($all{$ticker}->{'Ask'} || "No askping price found.")."\n";
-		} else { 
-			print "no stock data recieved for $ticker\n";
-			$all{$ticker} = undef;
-			next;
-		}
-	}
-}
-
 
 # Write all to CSV as output...
 open(my $csv, '>', 'stocks.csv');

@@ -12,7 +12,7 @@ use Getopt::Std;
 
 my %options=();
 # -t 4, -d "delimiter" -o "outputfile.csv" -r "us" -l "en-gb" -v -x "exclude.csv"
-getopts("t:d:o:r:l:vx:", \%options);
+getopts("t:d:o:r:l:vx:b", \%options);
 if($options{v}){
 	foreach my $opt(keys %options) {
 		print "$opt = $options{$opt}\n";
@@ -81,6 +81,7 @@ sub getJson {
 my %all;
 
 #Read in Cache of ticker to company names to prevent relookup(expensive)
+
 my $cacheFileName = "co2tick.cache";
 my $progressCacheFileName = "progress.cache";
 my $haveTickerCache = -e $cacheFileName;
@@ -98,13 +99,26 @@ $SIG{'INT'} = sub {
 	exit 1;
 };
 
-# Read in the list of companies
+# read in all the companies and exclude the ones in the exclude file
+my @companies = <>;
+if($options{x} && -e $options{x}) {
+	print "using exclude file '$options{x}'\n" if($options{v});
+	open (EXCLUDE, "< $options{x}") or die "Can't open $options{x} for read: $!";
+	my @lines = <EXCLUDE>;
+	my %exclude;
+	$exclude{$_} = undef foreach (@lines);
+	# exclude from companies those that are in exclude file
+	@companies = grep {not exists $exclude{$_}} @companies;
+	close EXCLUDE or die "Cannot close $options{x}: $!"; 
+}
+
+# process companies
 my $lineCount = 0;
-while(<>){
-	chomp;
-	chop;
-	next if !$_;
-	my $company = $_;
+foreach my $line(@companies){
+	my $company = $line;
+	chomp $company;
+	chop $company;
+	next if !$company;
 	my $ticker;
 
 	$company =~ s/ /_/g;
@@ -116,6 +130,12 @@ while(<>){
 	    	print "LIVE convertCompanyToTicker Company:'$company': ";
 		$ticker = ConvertCompanyToTicker($company);
 		print ($ticker || "could not resolved to a ticker symbol.");
+		if($options{b} && $options{x}) {
+			#exclude bad tickers
+			open(my $ex, '>>', $options{x}) or die "Could not open file '$options{x}' $!";
+			print $ex "$company\n";
+			close $ex;
+		}
 		print "\n";
 		next if(!$ticker);
 	};

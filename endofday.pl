@@ -11,7 +11,7 @@ use URI::Encode qw(uri_encode uri_decode);
 use Getopt::Std;
 
 my %options=();
-# -t threads, -d delimiter, -o outputfile.csv -r us -l en-gb -v -x exclude.csv
+# -t 4, -d "delimiter" -o "outputfile.csv" -r "us" -l "en-gb" -v -x "exclude.csv"
 getopts("t:d:o:r:l:vx:", \%options);
 if($options{v}){
 	foreach my $opt(keys %options) {
@@ -22,8 +22,8 @@ if($options{v}){
 sub ConvertCompanyToTicker {
 	my @args = @_;
 	my $company = uri_encode(shift @args);
-	my $region = shift @args || $options{r} || "us";
-	my $lang = shift @args ||  $options{l} || "en-gb";
+	my $region = shift @args || ($options{r} || "us");
+	my $lang = shift @args ||  ($options{l} || "en-gb");
 	my $json = getJson("http://d.yimg.com/aq/autoc?query=$company&region=$region&lang=$lang");
 	if ($json) {
 		#print "json:$json\n";
@@ -130,7 +130,7 @@ while(<>){
 #persist the cache of company to ticker hashes for future lookups...
 store(\%resolutionCache,$cacheFileName);
 
-my %output = iterate_as_hash({ workers => $options{t} || 10 },\&ConvertTickerToStock, \%all);
+my %output = iterate_as_hash({ workers => ($options{t} || 2) },\&ConvertTickerToStock, \%all);
 %all = (%all, %output);
 my @columns;
 

@@ -8,12 +8,22 @@ use Scalar::Util qw(reftype);
 use Parallel::Iterator qw( iterate_as_hash );
 use Data::Dumper;
 use URI::Encode qw(uri_encode uri_decode);
+use Getopt::Std;
+
+my %options=();
+# -t threads, -d delimiter, -o outputfile.csv -r us -l en-gb -v -x exclude.csv
+getopts("t:d:o:r:l:vx:", \%options);
+if($options{v}){
+	foreach my $opt(keys %options) {
+		print "$opt = $options{$opt}\n";
+	}
+}
 
 sub ConvertCompanyToTicker {
 	my @args = @_;
 	my $company = uri_encode(shift @args);
-	my $region = shift @args || "us";
-	my $lang = shift @args ||  "en-gb";
+	my $region = shift @args || $options{r} || "us";
+	my $lang = shift @args ||  $options{l} || "en-gb";
 	my $json = getJson("http://d.yimg.com/aq/autoc?query=$company&region=$region&lang=$lang");
 	if ($json) {
 		#print "json:$json\n";
@@ -120,18 +130,19 @@ while(<>){
 #persist the cache of company to ticker hashes for future lookups...
 store(\%resolutionCache,$cacheFileName);
 
-my %output = iterate_as_hash(\&ConvertTickerToStock, \%all);
+my %output = iterate_as_hash({ workers => $options{t} || 10 },\&ConvertTickerToStock, \%all);
 %all = (%all, %output);
 my @columns;
 
 # Write all to CSV as output...
-open(my $csv, '>', 'stocks.csv');
+open(my $csv, '>', $options{o} || 'stocks.csv');
 foreach my $ticker (sort keys %all) {
+	my $delim = $options{d} || ";";
 	my $stock = $all{$ticker}; 
 	#Get the first stocks values' order as default column order for all following stocks for csv format
 	if(!@columns) { 
 		@columns = sort keys(%$stock);
-		print $csv join(";", @columns)."\n";
+		print $csv join($delim, @columns)."\n";
 	}
 	my @line;
         
@@ -140,7 +151,7 @@ foreach my $ticker (sort keys %all) {
 		my $data = $stock->{$key} || "none";
 		push(@line, $data);
 	}
-	print $csv join(";",@line)."\n";
+	print $csv join($delim ,@line)."\n";
 	@line = undef;
 }
 close($csv);	

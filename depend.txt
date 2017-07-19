@@ -1,0 +1,7 @@
+libwww-perl 
+perl
+libjson-perl
+libparallel-iterator
+data-dumper
+liburi-encode-perl
+

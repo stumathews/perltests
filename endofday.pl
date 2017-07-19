@@ -11,12 +11,18 @@ use URI::Encode qw(uri_encode uri_decode);
 use Getopt::Std;
 
 my %options=();
-# -t 4, -d "delimiter" -o "outputfile.csv" -r "us" -l "en-gb" -v -x "exclude.csv"
-getopts("t:d:o:r:l:vx:b", \%options);
-if($options{v}){
+# -t 4, -d "delimiter" -o "outputfile.csv" -r "us" -l "en-gb" -v -x "exclude.csv" -l 5(co limit)
+getopts("ht:d:o:r:l:vx:bl:", \%options);
+my $verbose = $options{v};
+my $colimit = $options{l};
+if($verbose){
 	foreach my $opt(keys %options) {
 		print "$opt = $options{$opt}\n";
 	}
+}
+if($options{h}){
+	print "./endofday.pl -t <numThreads> -d <delimiter> -o <ouputfile> -r <region> -l <language> -x <exclude file> -l <limit> -v\n";
+	exit(0);
 }
 
 sub ConvertCompanyToTicker {
@@ -26,7 +32,6 @@ sub ConvertCompanyToTicker {
 	my $lang = shift @args ||  ($options{l} || "en-gb");
 	my $json = getJson("http://d.yimg.com/aq/autoc?query=$company&region=$region&lang=$lang");
 	if ($json) {
-		#print "json:$json\n";
 	    my $jObj = decode_json($json);
 	    my @queryResult = @{$jObj->{'ResultSet'}{'Result'}};
 	    for my $var (@queryResult) { 
@@ -45,17 +50,9 @@ sub ConvertTickerToStock {
 			   "%22)&format=json&env=store%3A%2F%2Fdatatables.org%2Falltableswithkeys&callback=";
 	my $json = getJson($url);
 	if($json) {
-		eval {
-			my $jObj = decode_json($json);
-			1;
-			my $queryResult = $jObj->{'query'}{'results'}{'quote'};
-			return $queryResult || undef;
-		} or do {
-		 	print $url; 
-			my $e = $@;
-			print "$e\n";
-			return undef;
-		};
+		my $jObj = decode_json($json);
+		my $queryResult = $jObj->{'query'}{'results'}{'quote'};
+		return $queryResult || undef;
 	}
 	return undef;
 }
@@ -101,15 +98,17 @@ $SIG{'INT'} = sub {
 
 # read in all the companies and exclude the ones in the exclude file
 my @companies = <>;
-if($options{x} && -e $options{x}) {
-	print "using exclude file '$options{x}'\n" if($options{v});
-	open (EXCLUDE, "< $options{x}") or die "Can't open $options{x} for read: $!";
+my $excludeFile = $options{x};
+
+if($excludeFile && -e $excludeFile) {
+	print "using exclude file '$excludeFile'\n" if($verbose);
+	open (EXCLUDE, "< $excludeFile") or die "Can't open $excludeFile for read: $!";
 	my @lines = <EXCLUDE>;
 	my %exclude;
 	$exclude{$_} = undef foreach (@lines);
 	# exclude from companies those that are in exclude file
 	@companies = grep {not exists $exclude{$_}} @companies;
-	close EXCLUDE or die "Cannot close $options{x}: $!"; 
+	close EXCLUDE or die "Cannot close $excludeFile: $!"; 
 }
 
 # process companies
@@ -130,9 +129,10 @@ foreach my $line(@companies){
 	    	print "LIVE convertCompanyToTicker Company:'$company': ";
 		$ticker = ConvertCompanyToTicker($company);
 		print ($ticker || "could not resolved to a ticker symbol.");
-		if($options{b} && $options{x}) {
+		my $addbadTickersToExcludeFile = $options{b};
+		if($addbadTickersToExcludeFile && $excludeFile) {
 			#exclude bad tickers
-			open(my $ex, '>>', $options{x}) or die "Could not open file '$options{x}' $!";
+			open(my $ex, '>>', $excludeFile) or die "Could not open file '$excludeFile' $!";
 			print $ex "$company\n";
 			close $ex;
 		}
@@ -144,13 +144,13 @@ foreach my $line(@companies){
 	$company =~ s/ /_/g;
 	$resolutionCache{$company} = $ticker;
 
-	$lineCount++;
+	last if ($colimit && ($lineCount++ == $colimit));
 }
 
 #persist the cache of company to ticker hashes for future lookups...
 store(\%resolutionCache,$cacheFileName);
-
-my %output = iterate_as_hash({ workers => ($options{t} || 2) },\&ConvertTickerToStock, \%all);
+my $numThreads = $options{t} || 2; 
+my %output = iterate_as_hash({ workers => $numThreads },\&ConvertTickerToStock, \%all);
 %all = (%all, %output);
 my @columns;
 
@@ -175,6 +175,11 @@ foreach my $ticker (sort keys %all) {
 	@line = undef;
 }
 close($csv);	
-unlink $progressCacheFileName
+unlink $progressCacheFileName;
+
+my $end_run = time();
+my $start_run = $^T;
+my $run_time = $end_run - $start_run;
+print "Job took $run_time seconds\n";
 
 

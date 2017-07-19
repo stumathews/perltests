@@ -15,7 +15,7 @@ my %options=();
 getopts("ht:d:o:r:l:vx:bl:", \%options);
 my $verbose = $options{v};
 my $colimit = $options{l};
-if($verbose){
+if($verbose) {
 	foreach my $opt(keys %options) {
 		print "$opt = $options{$opt}\n";
 	}
@@ -74,7 +74,7 @@ sub getJson {
         }
 }
 
-#Global store if all tickers and their stock details(tbd)
+#Global store of all tickers and their stock details
 my %all;
 
 #Read in Cache of ticker to company names to prevent relookup(expensive)
@@ -113,13 +113,14 @@ if($excludeFile && -e $excludeFile) {
 
 # process companies
 my $lineCount = 0;
-foreach my $line(@companies){
+foreach my $line(@companies) {
 	my $company = $line;
 	chomp $company;
 	chop $company;
 	next if !$company;
 	my $ticker;
 
+	# We're going to store company names with space to underscores so we can have one-worded companies in the cache
 	$company =~ s/ /_/g;
 	$ticker = $resolutionCache{$company};
 
@@ -130,7 +131,7 @@ foreach my $line(@companies){
 		$ticker = ConvertCompanyToTicker($company);
 		print ($ticker || "could not resolved to a ticker symbol.");
 		my $addbadTickersToExcludeFile = $options{b};
-		if($addbadTickersToExcludeFile && $excludeFile) {
+		if($addbadTickersToExcludeFile && $excludeFile && !$ticker) {
 			#exclude bad tickers
 			open(my $ex, '>>', $excludeFile) or die "Could not open file '$excludeFile' $!";
 			print $ex "$company\n";
@@ -141,6 +142,8 @@ foreach my $line(@companies){
 	};
 
 	$all{$ticker} = undef if(!$all{$ticker});
+
+	# Put the multiword comany name in the hash that tracks all the results
 	$company =~ s/ /_/g;
 	$resolutionCache{$company} = $ticker;
 
@@ -149,10 +152,11 @@ foreach my $line(@companies){
 
 #persist the cache of company to ticker hashes for future lookups...
 store(\%resolutionCache,$cacheFileName);
+
 my $numThreads = $options{t} || 2; 
+my @columns;
 my %output = iterate_as_hash({ workers => $numThreads },\&ConvertTickerToStock, \%all);
 %all = (%all, %output);
-my @columns;
 
 # Write all to CSV as output...
 open(my $csv, '>', $options{o} || 'stocks.csv');
@@ -162,7 +166,11 @@ foreach my $ticker (sort keys %all) {
 	#Get the first stocks values' order as default column order for all following stocks for csv format
 	if(!@columns) { 
 		@columns = sort keys(%$stock);
-		print $csv join($delim, @columns)."\n";
+		@preferred = qw(Name Currency Ask Open PreviousClose PercentChange PriceBook Change DaysHigh DaysLow EarningsShare);
+		my @newColumnsWithout = grep {!/join("|",@preferred)/} @columns;
+		my @reOrder = (@preferred, @newColumnsWithout);
+
+		print $csv join($delim, @reOrder)."\n";
 	}
 	my @line;
         

@@ -166,7 +166,7 @@ foreach my $ticker (sort keys %all) {
 	#Get the first stocks values' order as default column order for all following stocks for csv format
 	if(!@columns) { 
 		@columns = sort keys(%$stock);
-		@preferred = qw(Name Currency Ask Open PreviousClose PercentChange PriceBook Change DaysHigh DaysLow EarningsShare);
+		my @preferred = qw(Name Currency Ask Open PreviousClose PercentChange PriceBook Change DaysHigh DaysLow EarningsShare);
 		my @newColumnsWithout = grep {!/join("|",@preferred)/} @columns;
 		my @reOrder = (@preferred, @newColumnsWithout);
 

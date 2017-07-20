@@ -163,13 +163,14 @@ open(my $csv, '>', $options{o} || 'stocks.csv');
 foreach my $ticker (sort keys %all) {
 	my $delim = $options{d} || ";";
 	my $stock = $all{$ticker}; 
+	
 	#Get the first stocks values' order as default column order for all following stocks for csv format
 	if(!@columns) { 
 		@columns = sort keys(%$stock);
 		my @preferred = qw(Name Currency Ask Open PreviousClose PercentChange PriceBook Change DaysHigh DaysLow EarningsShare);
 		my @newColumnsWithout = grep {!/join("|",@preferred)/} @columns;
 		my @reOrder = (@preferred, @newColumnsWithout);
-
+		@columns = @reOrder;
 		print $csv join($delim, @reOrder)."\n";
 	}
 	my @line;

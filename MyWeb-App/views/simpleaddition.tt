@@ -1,0 +1,17 @@
+<div class="container-fluid">	
+	<div class="row">
+		<div class="col-md-12">
+			[% FOREACH sum IN sums.pairs.sort('value') %]			
+				<h2>				
+				[%sum.key%] = <input name="[%sum.key%]" id="[%sum.key%]" type="text" value="[%sum.value%]"/>
+				</h2>			
+			[% END %]
+		</div>
+	</div>
+</div>
+<script>
+$( document ).ready(function() {
+   
+});
+
+</script>

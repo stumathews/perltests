@@ -18,6 +18,7 @@
   <script src="[% request.uri_base %]/javascripts/jquery.min.js"></script>
   <script src="[% request.uri_base %]/javascripts/bootstrap.min.js"></script>
   <script src="[% request.uri_base %]/javascripts/scripts.js"></script>
+  <script src="[% request.uri_base %]/javascripts/math.min.js"></script>
   <div class="container-fluid">
   <nav class="navbar navbar-default" role="navigation">
 				<div class="navbar-header">

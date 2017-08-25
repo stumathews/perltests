@@ -1,11 +1,11 @@
 <div class="container-fluid">	
 	<div class="row">
-		<div class="col-md-12">
+		<div class="col-md-4">
 		<form class=""> 		
-			[% FOREACH sum IN sums.pairs.sort('value') %]		
+			[% FOREACH sum IN sums.pairs('value') %]		
 			<div id="overall" class="">			
 				<label for="answer">[%sum.key%]</label>
-				<input type="text" class="form-control" id="[%sum.key%]" value="[%sum.value%]">
+				<input type="text" class="form-control" id="[%sum.key%]" value="">
 				<span id="glyph" class=""></span>
 			</div>				
 			[% END %]			

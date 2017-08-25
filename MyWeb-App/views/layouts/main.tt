@@ -21,21 +21,22 @@
   <script src="[% request.uri_base %]/javascripts/math.min.js"></script>
   <div class="container-fluid">
   <nav class="navbar navbar-default" role="navigation">
-				<div class="navbar-header">
-					 
+				<div class="navbar-header">					 
 					<button type="button" class="navbar-toggle" data-toggle="collapse" data-target="#bs-example-navbar-collapse-1">
 						 <span class="sr-only">Toggle navigation</span><span class="icon-bar"></span><span class="icon-bar"></span><span class="icon-bar"></span>
-					</button> <a class="navbar-brand" href="[% request.uri_base %]">Daily Math Trainer</a>
+					</button> <a class="navbar-brand" href="[% request.uri_base %]">Daily Math Trainer</a>					
 				</div>
 				
 				<div class="collapse navbar-collapse" id="bs-example-navbar-collapse-1">
 					<ul class="nav navbar-nav">
-						<li class="active">
+						<li class="">
 							<a href="[% request.uri_base %]/simpleaddition">Simple Addition sheets</a>
 						</li>
+						<li class="">
+							<a href="[% request.uri_base %]/randomaddition">Random Addition sheets</a>
+						</li>
 					</ul>
-				</div>
-				
+				</div>				
 			</nav>
 	[% content %] 
 	

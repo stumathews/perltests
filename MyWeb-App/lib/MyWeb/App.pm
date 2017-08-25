@@ -46,4 +46,27 @@ get '/randomaddition' => sub {
 	};
 };
 
+get '/hardaddition' => sub {
+	my %randomaddition = (
+		"6+3"=>9,
+		"7+2"=>9,
+		"4+7"=>11,
+		"9+2"=>11,
+		"8+3"=>11,
+		"7+5"=>12,
+		"9+3"=>12,
+		"8+4"=>12,
+		"9+4"=>13,
+		"8+5"=>13,		
+		"8+6"=>14,
+		"9+5"=>14,
+		"9+7"=>16,
+		"9+6"=>15		
+		);
+    template 'simpleaddition.tt', { 
+							'title' => "Random addition",
+							'sums' => \%randomaddition,
+	};
+};
+
 true;

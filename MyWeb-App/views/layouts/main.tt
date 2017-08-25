@@ -35,6 +35,9 @@
 						<li class="">
 							<a href="[% request.uri_base %]/randomaddition">Random Addition sheets</a>
 						</li>
+						<li class="">
+							<a href="[% request.uri_base %]/hardaddition">Hard Addition sheets</a>
+						</li>
 					</ul>
 				</div>				
 			</nav>

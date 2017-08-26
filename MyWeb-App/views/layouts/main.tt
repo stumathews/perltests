@@ -30,13 +30,13 @@
 				<div class="collapse navbar-collapse" id="bs-example-navbar-collapse-1">
 					<ul class="nav navbar-nav">
 						<li class="">
-							<a href="[% request.uri_base %]/simpleaddition">Simple Addition sheets</a>
+							<a href="[% request.uri_base %]/consecutiveaddition1">Consecutive addition level 1</a>
 						</li>
 						<li class="">
-							<a href="[% request.uri_base %]/randomaddition">Random Addition sheets</a>
+							<a href="[% request.uri_base %]/consecutiveaddition2">Consecutive addition level 2</a>
 						</li>
 						<li class="">
-							<a href="[% request.uri_base %]/hardaddition">Hard Addition sheets</a>
+							<a href="[% request.uri_base %]/randomaddition/10">Random Addition</a>
 						</li>
 					</ul>
 				</div>				

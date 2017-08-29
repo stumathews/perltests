@@ -48,4 +48,41 @@ get '/randomaddition/:upto' => sub {
 	};
 };
 
+get '/alphabet' => sub {
+	my %alphabet = ( "A"=>1, "B"=>2, "C"=>3, "D"=>4, "E"=>5, "F"=>6, "G"=>7, "H"=>8, "I"=>9,
+					 "J"=>10,"K"=>11,"L"=>12,"M"=>13,"N"=>14,"O"=>15, "P"=>16,"Q"=>17,"R"=>18,"S"=>19,
+		"T"=>20,"U"=>21,"V"=>22,"W"=>23,"X"=>24,"Y"=>25,"Z"=>26);
+    template 'alphabet.tt', { 
+							'title' => "Alphabet",
+							'letters' => \%alphabet,
+	};
+};
+get '/alphabetnumbers' => sub {
+	my %alphabet = ( "A"=>1, "B"=>2, "C"=>3, "D"=>4, "E"=>5, "F"=>6, "G"=>7, "H"=>8, "I"=>9,
+					 "J"=>10,"K"=>11,"L"=>12,"M"=>13,"N"=>14,"O"=>15, "P"=>16,"Q"=>17,"R"=>18,"S"=>19,
+		"T"=>20,"U"=>21,"V"=>22,"W"=>23,"X"=>24,"Y"=>25,"Z"=>26);
+    template 'alphabetnumbers.tt', { 
+							'title' => "Alphabet",
+							'letters' => \%alphabet,
+	};
+};
+
+get '/months' => sub {
+	my %alphabet = ( "JAN"=>1, "FEB"=>2, "MAR"=>3, "AUG"=>4, "MAY"=>5, "JUNE"=>6, "JULY"=>7, "APR"=>8, "SEPT"=>9,"OCT"=>10,"NOV"=>11,"DEC"=>12,"JULY"=>7,"JUNE"=>6,"MAY"=>5,"AUG"=>4,"APR"=>8,"JULY"=>7,
+	"MAY"=>5);
+    template 'alphabet.tt', { 
+							'title' => "Alphabet",
+							'letters' => \%alphabet,
+	};
+};
+
+get '/monthnumbers' => sub {
+	my %alphabet = ( "JAN"=>1, "FEB"=>2, "MAR"=>3, "AUG"=>4, "MAY"=>5, "JUNE"=>6, "JULY"=>7, "APR"=>8, "SEPT"=>9,"OCT"=>10,"NOV"=>11,"DEC"=>12,"JULY"=>7,"JUNE"=>6,"MAY"=>5,"AUG"=>4,"APR"=>8,"JULY"=>7,
+	"MAY"=>5);
+    template 'monthnumbers.tt', { 
+							'title' => "Alphabet",
+							'letters' => \%alphabet,
+	};
+};
+
 true;

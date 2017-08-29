@@ -38,6 +38,21 @@
 						<li class="">
 							<a href="[% request.uri_base %]/randomaddition/10">Random Addition</a>
 						</li>
+						<li class="">
+							<a href="[% request.uri_base %]/hardaddition">Tricky Addition</a>
+						</li>
+						<li class="">
+							<a href="[% request.uri_base %]/alphabet">Alphabet</a>
+						</li>
+						<li class="">
+							<a href="[% request.uri_base %]/alphabetnumbers">Alphabet numbers</a>
+						</li>
+						<li class="">
+							<a href="[% request.uri_base %]/months">Months</a>
+						</li>
+						<li class="">
+							<a href="[% request.uri_base %]/monthnumbers">Month numbers</a>
+						</li>
 					</ul>
 				</div>				
 			</nav>

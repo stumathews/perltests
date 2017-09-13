@@ -1,0 +1,44 @@
+<div class="container-fluid">	
+	<div class="row">
+		<div class="col-md-4">
+		<form class=""> 		
+			[% FOREACH letter IN letters.pairs('value').nsort %]		
+			<div id="overall" class="">			
+				<label for="answer">[%letter.value%]</label>
+				<input type="text" class="form-control" id="[%letter.key%]" value="">
+				<span id="glyph" class=""></span>
+			</div>				
+			[% END %]			
+		</div>		 
+	</div>
+	</form>
+</div>
+<script>
+$(document).ready(function() {
+	$("input").blur(function (e) {
+		var correct_answer = e.target.id;
+		var user_answer = e.target.value;
+		var overall = $(this).parent();
+		var glyph = $(this).next();
+		var error_styles1 = "form-group has-error has-feedback";
+		var error_styles2 = 'glyphicon glyphicon-remove form-control-feedback';
+		var success_styles1 = "form-group has-success has-feedback";
+		var success_styles2 = "glyphicon glyphicon-ok form-control-feedback";	
+		
+		if( user_answer === correct_answer ) {				
+			overall.removeClass(error_styles1);
+			glyph.removeClass(error_styles2);
+			
+			overall.addClass(success_styles1);
+			glyph.addClass(success_styles2);			
+			
+		} else { 
+			overall.removeClass(success_styles1);
+			glyph.removeClass(success_styles2);	
+			
+			overall.addClass(error_styles1);			
+			glyph.addClass(error_styles2);			
+		}
+	});     
+});
+</script>

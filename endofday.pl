@@ -159,24 +159,29 @@ my %output = iterate_as_hash({ workers => $numThreads },\&ConvertTickerToStock, 
 %all = (%all, %output);
 
 # Write all to CSV as output...
-open(my $csv, '>', $options{o} || 'stocks.csv');
+my @now = localtime();
+my $timeStamp = sprintf("%04d%02d%02d%02d%02d%02d", 
+                        $now[5]+1900, $now[4]+1, $now[3],
+                        $now[2],      $now[1],   $now[0]);
+open(my $csv, '>', $options{o} || "stocks_$timeStamp.csv");
 foreach my $ticker (sort keys %all) {
 	my $delim = $options{d} || ";";
 	my $stock = $all{$ticker}; 
+	
 	#Get the first stocks values' order as default column order for all following stocks for csv format
 	if(!@columns) { 
 		@columns = sort keys(%$stock);
 		my @preferred = qw(Name Currency Ask Open PreviousClose PercentChange PriceBook Change DaysHigh DaysLow EarningsShare);
 		my @newColumnsWithout = grep {!/join("|",@preferred)/} @columns;
 		my @reOrder = (@preferred, @newColumnsWithout);
-
+		@columns = @reOrder;
 		print $csv join($delim, @reOrder)."\n";
 	}
 	my @line;
         
 	foreach my $key(@columns) {
 		my $column = $key;
-		my $data = $stock->{$key} || "none";
+		my $data = $stock->{$key} || "";
 		push(@line, $data);
 	}
 	print $csv join($delim ,@line)."\n";

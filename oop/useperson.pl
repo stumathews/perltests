@@ -15,3 +15,4 @@ print "policeOfficer officer param 1 is ", $policeOfficer->GetParam1(), "\n";
 print "policeOfficer param 3 is ", $policeOfficer->GetParam3(), "\n";
 print "Get person Constant constant via inheritance is ", $policeOfficer->GetConstant(), "\n";
 print "PoliceOfficer constant is ", $policeOfficer->GetPoliceConstant(), "\n";
+

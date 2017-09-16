@@ -10,19 +10,42 @@ use Data::Dumper;
 use URI::Encode qw(uri_encode uri_decode);
 use Getopt::Std;
 
+#Global store of all tickers and their stock details
+my %all;
 my %options=();
+getopts("ht:d:o:r:l:vx:bpgc", \%options);
 # -t 4, -d "delimiter" -o "outputfile.csv" -r "us" -l "en-gb" -v -x "exclude.csv" -l 5(co limit)
-getopts("ht:d:o:r:l:vx:bl:", \%options);
+# -b : add bad resolutions to explcusions file (must be with -x)
+# -p show cache
+# -g show progress
+# -c print companies
+
 my $verbose = $options{v};
 my $colimit = $options{l};
+
+# print arguments used
 if($verbose) {
 	foreach my $opt(keys %options) {
 		print "$opt = $options{$opt}\n";
 	}
 }
+
+#print help
 if($options{h}){
 	print "./endofday.pl -t <numThreads> -d <delimiter> -o <ouputfile> -r <region> -l <language> -x <exclude file> -l <limit> -v\n";
 	exit(0);
+}
+
+sub encode_name {
+	my $name = shift @_;
+	$name  =~ s/ /_/g;
+	return $name;	
+}
+
+sub decode_name {
+	my $name = shift @_;
+	$name  =~ s/_/ /g;
+	return $name;	
 }
 
 sub ConvertCompanyToTicker {
@@ -52,7 +75,10 @@ sub ConvertTickerToStock {
 	if($json) {
 		my $jObj = decode_json($json);
 		my $queryResult = $jObj->{'query'}{'results'}{'quote'};
-		return $queryResult || undef;
+		$all{$ticker} = $queryResult || undef;
+		# print Huge output?
+		print Dumper($queryResult);
+		return $all{$ticker};
 	}
 	return undef;
 }
@@ -74,60 +100,92 @@ sub getJson {
         }
 }
 
-#Global store of all tickers and their stock details
-my %all;
-
 #Read in Cache of ticker to company names to prevent relookup(expensive)
-
 my $cacheFileName = "co2tick.cache";
 my $progressCacheFileName = "progress.cache";
 my $haveTickerCache = -e $cacheFileName;
 my $haveProgressCache = -e $progressCacheFileName;
 my %resolutionCache;
+
+my $printCache = $options{p};
 if($haveTickerCache) {
 	%resolutionCache = %{ retrieve($cacheFileName) };
+	# print the company vs ticker cache is asked
+	if($printCache) {
+		print "Printing company vs ticker cache...e\n";
+		my $count = 0;
+		while ((my $company, my $ticker) = each(%resolutionCache)) {
+			$company = decode_name($company);
+			print "cache hit #",$count++, ": Company: $company Ticker -->",$ticker,"\n";
+		}
+		exit 0;
+	}
 }
+my $printProgress = $options{g};
 if($haveProgressCache) {
 	%all = %{ retrieve($progressCacheFileName) };
+	#print the progress cache if asked
+	if($printProgress) {
+	print "Printing progress cache...\n";
+		my $count = 0;
+		print Dumper(\%all);
+		
+		exit 0;
+	}
 }
 
 $SIG{'INT'} = sub {
-	store(\%all,$progressCacheFileName);
+	if($options{v}){
+		print "Saving progress...\n";
+	}
+	store(\%all, $progressCacheFileName);
 	exit 1;
+	
 };
 
-# read in all the companies and exclude the ones in the exclude file
+# read in all the companies 
 my @companies = <>;
 my $excludeFile = $options{x};
 
+#print companies if asked
+if($options{c}){
+	print @companies;
+	print "END"
+}
+
+#and exclude the ones in the exclude file
 if($excludeFile && -e $excludeFile) {
 	print "using exclude file '$excludeFile'\n" if($verbose);
 	open (EXCLUDE, "< $excludeFile") or die "Can't open $excludeFile for read: $!";
-	my @lines = <EXCLUDE>;
+	my @lines = <EXCLUDE>;	
 	my %exclude;
-	$exclude{$_} = undef foreach (@lines);
-	# exclude from companies those that are in exclude file
-	@companies = grep {not exists $exclude{$_}} @companies;
+	print "There are $#lines excludes\n" if $options{v};
+	print "There are $#companies companies before exclude filter\n" if $options{v};
+	# exclude from companies those that are in exclude file	
+	 my %hash;
+	@hash{@lines} = ((undef) x @lines);	
+	@companies = grep { not exists $hash{$_} } @companies;
+	
+	print "There are $#companies companies After exclude filter\n" if $options{v};	
 	close EXCLUDE or die "Cannot close $excludeFile: $!"; 
 }
 
-# process companies
+# process companies as to convert themto tickers...
 my $lineCount = 0;
 foreach my $line(@companies) {
 	my $company = $line;
-	chomp $company;
-	chop $company;
+	chomp $company; #forget newlines
 	next if !$company;
 	my $ticker;
 
 	# We're going to store company names with space to underscores so we can have one-worded companies in the cache
-	$company =~ s/ /_/g;
+	$company = encode_name($company);
 	$ticker = $resolutionCache{$company};
 
 	# get a ticker	
 	if(!$ticker) { 
-		$company =~ s/_/ /g;
-	    	print "LIVE convertCompanyToTicker Company:'$company': ";
+		$company = decode_name($company);
+		print "LIVE convertCompanyToTicker Company:'$company'\n";
 		$ticker = ConvertCompanyToTicker($company);
 		print ($ticker || "could not resolved to a ticker symbol.");
 		my $addbadTickersToExcludeFile = $options{b};
@@ -138,15 +196,18 @@ foreach my $line(@companies) {
 			close $ex;
 		}
 		print "\n";
+		
 		next if(!$ticker);
 	};
+	print "CACHE convertCompanyToTicker Company:'$company'\n";
+	# Make a space for this ticker's results...which we dont have yet...
+	$all{$ticker} = undef;
 
-	$all{$ticker} = undef if(!$all{$ticker});
-
-	# Put the multiword comany name in the hash that tracks all the results
-	$company =~ s/ /_/g;
+	# Put the multiword company name in the hash that tracks all the results
+	$company = encode_name($company);
 	$resolutionCache{$company} = $ticker;
 
+	# Stop process after a set mount if asked to
 	last if ($colimit && ($lineCount++ == $colimit));
 }
 
@@ -155,6 +216,8 @@ store(\%resolutionCache,$cacheFileName);
 
 my $numThreads = $options{t} || 2; 
 my @columns;
+
+# Process the tickers as to convert them to stock details.
 my %output = iterate_as_hash({ workers => $numThreads },\&ConvertTickerToStock, \%all);
 %all = (%all, %output);
 
@@ -188,6 +251,7 @@ foreach my $ticker (sort keys %all) {
 	@line = undef;
 }
 close($csv);	
+# We've finished and dont need a progress file anymore.
 unlink $progressCacheFileName;
 
 my $end_run = time();

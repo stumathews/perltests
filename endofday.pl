@@ -10,15 +10,11 @@ use Data::Dumper;
 use URI::Encode qw(uri_encode uri_decode);
 use Getopt::Std;
 
-
-#Global store of all tickers and their stock details
-my %all = ();
-
-# the actuual cache of tickers/names
+my %ticker_data = ();
 my %company_tickers;
-
 my %options=();
-getopts("ht:d:o:r:l:vx:bpgcsmi", \%options);
+
+getopts("abcd:ghil:o:pr:st:mvx:", \%options);
 
 my $verbose = $options{v};
 my $colimit = $options{l};
@@ -27,36 +23,39 @@ my $haveTickerCache = -e $cacheFileName;
 my $printCache = $options{p};
 my $numThreads = $options{t} || 2; 
 
-# print arguments used if verbosed mode used
+
 if($verbose) {
+    # print arguments used if verbosed mode used
 	foreach my $opt(keys %options) {
 		print "$opt = $options{$opt}\n";
 	}
 }
 
-#print help if asked to
 if($options{h}){
+    #print help if asked to
 	print "\n";
 	print <<EOD;
 Usage: perl endofday.pl <options> <company_file>
 
 Options:
- -t : Threads to use concurrently to get ticker's stock data - default is 2
- -d : Delimiter to use in output file eg. ";" (default)
- -o : Output file to send all stock data to eg. "outputfile.csv" default is stocks_date_time.csv
- -r : Region for yahoo query eg. "us"(default)
- -l : Language for yahoo query eg. "en-gb" (default)
- -v : Verbose messages are shown
- -x : eXclude certain companies listed in file eg. "exclude.csv" - one company per line like input
- -l : Length of processing loop i.e end after specified companies are processed (default dont stop until finished)
- -b : Bad resolutions added to exclusions file (must be used in conjunction with specifing an exclude file eg. with -x)
- -p : show name to ticker cache (used to prevent re-lookup of ticker symbols for known companies)
- -g : show saved proGress
- -c : print all Companies.
- -s : skip company to ticker resolution - use only known tickers
- -e : introduce random sleep to confuse spam detectors
- -m : print cache misses
- -i - print cache hits
+ -t <num>    : Threads to use concurrently to get ticker's stock data - default is 2
+ -d <delim>  : Delimiter to use in output file eg. ";" (default)
+ -o <file>   : Output file to send all stock data to eg. "outputfile.csv" default is stocks_date_time.csv
+ -r <region> : Region for yahoo query eg. "us"(default)
+ -l <lang>   : Language for yahoo query eg. "en-gb" (default)
+ -v          : Verbose messages are shown
+ -x <file>   : eXclude certain companies listed in file eg. "exclude.csv" - one company per line like input
+ -l          : Length of processing loop i.e end after specified companies are processed (default dont stop until finished)
+ -b          : Bad resolutions added to exclusions file (must be used in conjunction with specifing an exclude file eg. with -x)
+ -p          : show name to ticker cache (used to prevent re-lookup of ticker symbols for known companies)
+ -g          : show saved proGress
+ -c          : print all Companies.
+ -s          : skip company to ticker resolution - use only known tickers
+ -e          : introduce random sleep to confuse spam detectors
+ -m          : print cache misses
+ -i          : print cache hits
+ -a          : print all diagnostics
+ 
  Examples:  perl endofpday.pl -v companies.csv
             perl endofday.pl -b -x excludefile.csv companies.csv
             perl endofday.pl -d ',' -o 'myoutputfile.csv' companies.csv
@@ -68,29 +67,30 @@ EOD
 	exit(0);
 }
 
-# converts spaces to underscores
 sub encode_name {
+    # converts spaces to underscores
 	my $name = shift @_;
 	$name  =~ s/ /_/g;
 	return $name;	
 }
 
-#converts underscores to spaces
 sub decode_name {
+    #converts underscores to spaces
 	my $name = shift @_;
 	$name  =~ s/_/ /g;
 	return $name;	
 }
 
-# Looks up the company name on the internet to get its corresponding ticker symbol (which is used later to get its stock details)
 sub ConvertEncodedCompanyToTicker {    
+    # Looks up the company name on the internet to get its corresponding ticker symbol 
+    # (which is used later to get its stock details)
 	my @args = @_;		
 	my $encoded_company = shift @args;	
 	my $decoded_company = decode_name($encoded_company);
 	my $company_uri =  uri_encode($decoded_company);	
 	my $region = shift @args || ($options{r} || "us");
 	my $lang = shift @args ||  ($options{l} || "en-gb");
-	#print "LIVE ConvertEncodedCompanyToTicker : $decoded_company\n";
+	print "LIVE ConvertEncodedCompanyToTicker : $decoded_company\n" if $options{a};
 	my $json = getJson("http://d.yimg.com/aq/autoc?query=$company_uri&region=$region&lang=$lang");	
 	if ($json) {
 	    my $jObj = decode_json($json);
@@ -103,7 +103,7 @@ sub ConvertEncodedCompanyToTicker {
 		    return $ticker;
 	    }
 		if(!$gotResult){
-			print "No data received for $decoded_company\n";
+			print "No ticker symbol could be found for $decoded_company\n";
 		}
 	}
 	return undef;
@@ -116,8 +116,8 @@ sub ConvertTickerToStock {
 	my $ticker = shift @args;
 	my $url = "https://query.yahooapis.com/v1/public/yql?q=".
 		           "select%20*%20from%20yahoo.finance.quotes%20where%20symbol%20in%20(%22" .$ticker.
-			   "%22)&format=json&env=store%3A%2F%2Fdatatables.org%2Falltableswithkeys&callback=";	
-	#print $url,"\n" if $verbose;	
+			   "%22)&format=json&env=store%3A%2F%2Fdatatables.org%2Falltableswithkeys&callack=";	
+	print $url,"\n" if $options{a};
 	my $json = getJson($url);
 	if($json) {
 		my $jObj = decode_json($json);		
@@ -135,8 +135,8 @@ sub ConvertTickerToStock {
 			my $DaysLow = $queryResult->{'DaysLow'} || "none" ;
 			my $EarningsShare = $queryResult->{'EarningsShare'} || "none" ;		
 			print sprintf("%36s %5s %6s %6s %6s %6s %6s %6s %6s %6s %6s %6s\n",$Name,$Currency,$Ask,$Open,$PreviousClose,$PercentChange,$PriceBook, $Change,$DaysHigh,$DaysLow,$EarningsShare, $ticker);
-			##print Dumper($queryResult) if $verbose;
-			#print "type is ", ref($queryResult),"\n";
+			print Dumper($queryResult) if $options{a};
+			print "type is ", ref($queryResult),"\n" if $options{a};
 			return $queryResult
 		}
 	}  
@@ -155,7 +155,7 @@ sub getJson {
     sleep rand($options{t}) if $options{e};
     my $resp = $ua->request($req);        
     if ($resp->is_success) { 
-		#print "Dump decoded_conent:", $resp->decoded_content, "\n";
+		print "Dump decoded_conent:", $resp->decoded_content, "\n" if $options{a};
         return $resp->decoded_content;
     } else {
         print "HTTP GET error code: ", $resp->code, "\n";
@@ -210,8 +210,9 @@ s/\r|\n//g for @companies;
 # We like companies without spaces so encode them
 @companies = map { encode_name($_)} @companies;
 
-#print companies if asked to, -c
+
 if($options{c}){
+    #print companies if asked to, -c
 	print @companies;
 }
 
@@ -242,20 +243,20 @@ foreach my $company (@companies) {
 	}
 }
 
-my %defined = ();
-my %undefined = ();
+my %company_ticker = (); 
+my %company_noticker = ();
 while( my( $company, $ticker ) = each %company_tickers ){
-    $defined{$company} = $ticker if $ticker; #cache hits
-    $undefined{$company} = $ticker if !$ticker; #cache misses
+    $company_ticker{$company} = $ticker if $ticker; #cache hits
+    $company_noticker{$company} = $ticker if !$ticker; #cache misses
 }
 
-print "sending in only ", scalar(keys %undefined), " companies for resolution\n";
-print scalar(keys %defined), " have already been found via cache\n";
+print "sending in only ", scalar(keys %company_noticker), " companies for resolution\n";
+print scalar(keys %company_ticker), " have already been found via cache\n";
 print "both combined = ", scalar(keys %company_tickers),"\n";
-if(!$options{s}){
-    #Pass one: Get all known company tickers and update the company_tickers value as ticker symbol
-    my %output1 = iterate_as_hash({ workers => $numThreads },\&ConvertEncodedCompanyToTicker, \%undefined);
-    %company_tickers = (%defined, %output1);
+
+if(!$options{s}){ #skip name->ticker resolution?
+    my %output1 = iterate_as_hash({ workers => $numThreads },\&ConvertEncodedCompanyToTicker, \%company_noticker);
+    %company_tickers = (%company_ticker, %output1);
 }
 
 
@@ -263,19 +264,17 @@ print "Finished Pass one : Resolving company names to tickers\n";
 print "Saving results in $cacheFileName\n\n";
 store(\%company_tickers, $cacheFileName);
     
-	#print Dumper(%company_tickers); exit 1;
+print Dumper(%company_tickers) if $options{a};
 
+#Set all tickers to look for to undef stock prices ie tbd
 while( my($c, $t) = each %company_tickers ){            
-	$all{$t} = undef if $t;	
+	$ticker_data{$t} = undef if $t;	
 }
 
+my %output = iterate_as_hash({ workers => $numThreads },\&ConvertTickerToStock, \%ticker_data);
+%ticker_data = (%ticker_data, %output);
 
-#Pass 2: Process the tickers as to convert them to stock details.
-my %output = iterate_as_hash({ workers => $numThreads },\&ConvertTickerToStock, \%all);
-%all = (%all, %output);
-
-print Dumper(%all);
-
+print Dumper(%ticker_data) if $options{a};
 
 print "Phase 2 Complete: Fetching stock data for tickers\n";
 print "Writing all stock data to CSV...\n";
@@ -289,13 +288,13 @@ my $timeStamp = sprintf("%04d-%02d-%02d_%02d-%02d-%02d",
 my @columns;
 # Write to output file
 open(my $csv, '>', $options{o} || "stocks_$timeStamp.csv");
-foreach my $ticker (sort keys %all) {
+foreach my $ticker (sort keys %ticker_data) {
 	my $delim = $options{d} || ";";
-	next if !$all{$ticker};
-	my $stock = $all{$ticker}; 
-	print "### typeof =",ref($stock),Dumper($stock),"\n";
+	next if !$ticker_data{$ticker};
+	my $stock = $ticker_data{$ticker}; 
+	print "### typeof =",ref($stock),Dumper($stock),"\n" if $options{a};
 	# Arrange column names
-	#Get the first stocks values' order as default column order for all following stocks for csv format
+	# Get the first stocks values' order as default column order for all following stocks for csv format
 	if(!@columns) { 
 		@columns = sort keys(%$stock);
 		# Set the order of the first bunch of columns to my preferred selection

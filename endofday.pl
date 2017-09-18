@@ -90,16 +90,21 @@ sub ConvertEncodedCompanyToTicker {
 	my $company_uri =  uri_encode($decoded_company);	
 	my $region = shift @args || ($options{r} || "us");
 	my $lang = shift @args ||  ($options{l} || "en-gb");
-	print "LIVE ConvertEncodedCompanyToTicker : $decoded_company\n";
+	#print "LIVE ConvertEncodedCompanyToTicker : $decoded_company\n";
 	my $json = getJson("http://d.yimg.com/aq/autoc?query=$company_uri&region=$region&lang=$lang");	
 	if ($json) {
 	    my $jObj = decode_json($json);
 	    my @queryResult = @{$jObj->{'ResultSet'}{'Result'}};	    
-	    for my $var (@queryResult) {                        
+	    my $gotResult = undef;
+		for my $var (@queryResult) {  
+			$gotResult = 1;
             my $ticker = $var->{symbol};            
             print "company = '$decoded_company' ticker --> $ticker\n";
 		    return $ticker;
 	    }
+		if(!$gotResult){
+			print "No data received for $decoded_company\n";
+		}
 	}
 	return undef;
 }
@@ -115,22 +120,25 @@ sub ConvertTickerToStock {
 	#print $url,"\n" if $verbose;	
 	my $json = getJson($url);
 	if($json) {
-		my $jObj = decode_json($json);
-		my $queryResult = $jObj->{'query'}{'results'}{'quote'};		
-		my $Name = $queryResult->{'Name'} || "none" ;
-        my $Currency = $queryResult->{'Currency'} || "none" ; 
-        my $Ask = $queryResult->{'Ask'} || "none" ; 
-        my $Open = $queryResult->{'Open'} || "none" ; 
-        my $PreviousClose = $queryResult->{'PreviousClose'} || "none" ; 
-        my $PercentChange = $queryResult->{'PercentChange'} || "none" ;
-        my $PriceBook = $queryResult->{'PriceBook'} || "none" ; 
-        my $Change = $queryResult->{'Change'} || "none" ; 
-        my $DaysHigh  = $queryResult->{'DaysHigh'} || "none" ;
-        my $DaysLow = $queryResult->{'DaysLow'} || "none" ;
-        my $EarningsShare = $queryResult->{'EarningsShare'} || "none" ;
-		print sprintf("%36s %s %s %s %s %s %s %s %s %s %s",$Name,$Currency,$Ask,$Open,$PreviousClose,$PercentChange,$PriceBook, $Change,$DaysHigh,$DaysLow,$EarningsShare);
-		#print Dumper($queryResult) if $verbose;
-		return $queryResult
+		my $jObj = decode_json($json);		
+		if($jObj && $jObj->{'query'} && $jObj->{'query'}{'results'} && $jObj->{'query'}{'results'}{'quote'}) {		
+			my $queryResult = $jObj->{'query'}{'results'}{'quote'};
+			my $Name = $queryResult->{'Name'} || "none" ;
+			my $Currency = $queryResult->{'Currency'} || "none" ; 
+			my $Ask = $queryResult->{'Ask'} || "none" ; 
+			my $Open = $queryResult->{'Open'} || "none" ; 
+			my $PreviousClose = $queryResult->{'PreviousClose'} || "none" ; 
+			my $PercentChange = $queryResult->{'PercentChange'} || "none" ;
+			my $PriceBook = $queryResult->{'PriceBook'} || "none" ; 
+			my $Change = $queryResult->{'Change'} || "none" ; 
+			my $DaysHigh  = $queryResult->{'DaysHigh'} || "none" ;
+			my $DaysLow = $queryResult->{'DaysLow'} || "none" ;
+			my $EarningsShare = $queryResult->{'EarningsShare'} || "none" ;		
+			print sprintf("%36s %5s %6s %6s %6s %6s %6s %6s %6s %6s %6s %6s\n",$Name,$Currency,$Ask,$Open,$PreviousClose,$PercentChange,$PriceBook, $Change,$DaysHigh,$DaysLow,$EarningsShare, $ticker);
+			##print Dumper($queryResult) if $verbose;
+			#print "type is ", ref($queryResult),"\n";
+			return $queryResult
+		}
 	}  
 	return undef;
 }
@@ -147,6 +155,7 @@ sub getJson {
     sleep rand($options{t}) if $options{e};
     my $resp = $ua->request($req);        
     if ($resp->is_success) { 
+		#print "Dump decoded_conent:", $resp->decoded_content, "\n";
         return $resp->decoded_content;
     } else {
         print "HTTP GET error code: ", $resp->code, "\n";
@@ -224,6 +233,15 @@ if($excludeFile && -e $excludeFile) {
 	close EXCLUDE or die "Cannot close $excludeFile: $!"; 
 }
 
+# add companies to cache if the cache doesn't have the company loaded from file
+foreach my $company (@companies) {
+	if(not exists $company_tickers{$company})
+	{
+		print "Adding new company to cache '$company'\n";
+		$company_tickers{$company} = undef;
+	}
+}
+
 my %defined = ();
 my %undefined = ();
 while( my( $company, $ticker ) = each %company_tickers ){
@@ -240,16 +258,24 @@ if(!$options{s}){
     %company_tickers = (%defined, %output1);
 }
 
+
 print "Finished Pass one : Resolving company names to tickers\n";
 print "Saving results in $cacheFileName\n\n";
 store(\%company_tickers, $cacheFileName);
     
-while( my($company, $ticker) = each %company_tickers ){        
-    $all{$ticker} = undef if $ticker;    
+	#print Dumper(%company_tickers); exit 1;
+
+while( my($c, $t) = each %company_tickers ){            
+	$all{$t} = undef if $t;	
 }
+
+
 #Pass 2: Process the tickers as to convert them to stock details.
 my %output = iterate_as_hash({ workers => $numThreads },\&ConvertTickerToStock, \%all);
-%all = (%defined, %output);
+%all = (%all, %output);
+
+print Dumper(%all);
+
 
 print "Phase 2 Complete: Fetching stock data for tickers\n";
 print "Writing all stock data to CSV...\n";
@@ -265,8 +291,9 @@ my @columns;
 open(my $csv, '>', $options{o} || "stocks_$timeStamp.csv");
 foreach my $ticker (sort keys %all) {
 	my $delim = $options{d} || ";";
+	next if !$all{$ticker};
 	my $stock = $all{$ticker}; 
-	
+	print "### typeof =",ref($stock),Dumper($stock),"\n";
 	# Arrange column names
 	#Get the first stocks values' order as default column order for all following stocks for csv format
 	if(!@columns) { 

@@ -14,7 +14,7 @@ my %ticker_data = ();
 my %company_tickers;
 my %options=();
 
-getopts("abcd:ghil:o:pr:st:mvx:", \%options);
+getopts("abcd:e:ghil:o:pr:st:mvx:", \%options);
 
 my $verbose = $options{v};
 my $colimit = $options{l};
@@ -51,7 +51,7 @@ Options:
  -g          : show saved proGress
  -c          : print all Companies.
  -s          : skip company to ticker resolution - use only known tickers
- -e          : introduce random sleep to confuse spam detectors
+ -e <num>    : introduce random sleep up to <num> seconds to confuse spam detectors
  -m          : print cache misses
  -i          : print cache hits
  -a          : print all diagnostics
@@ -152,7 +152,10 @@ sub getJson {
        $req->header('content-type' => 'application/json');
 	my $ua = LWP::UserAgent->new;
 	#introduce random sleep.
-    sleep rand($options{t}) if $options{e};
+    if($options{e}){
+        my $random = int(rand($options{e})) + 0;
+        sleep ($random);
+    }
     my $resp = $ua->request($req);        
     if ($resp->is_success) { 
 		print "Dump decoded_conent:", $resp->decoded_content, "\n" if $options{a};
